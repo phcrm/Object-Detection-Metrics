@@ -1,2 +1,3 @@
+tractor 25 16 38 56
 person 25 16 38 56
 person 129 123 41 62
