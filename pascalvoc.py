@@ -90,7 +90,7 @@ def ValidatePaths(arg, nameArg, errors):
 
 
 def getBoundingBoxes(directory,
-                     isGT,
+                     bb_type,
                      bbFormat,
                      coordType,
                      allBoundingBoxes=None,
@@ -120,7 +120,7 @@ def getBoundingBoxes(directory,
             if line.replace(' ', '') == '':
                 continue
             splitLine = line.split(" ")
-            if isGT:
+            if bb_type=='isGT':
                 # idClass = int(splitLine[0]) #class
                 idClass = (splitLine[0])  # class
                 x = float(splitLine[1])
@@ -138,7 +138,25 @@ def getBoundingBoxes(directory,
                     imgSize,
                     BBType.GroundTruth,
                     format=bbFormat)
-            else:
+            elif bb_type=='isMV':
+                # idClass = int(splitLine[0]) #class
+                idClass = (splitLine[0])  # class
+                x = float(splitLine[1])
+                y = float(splitLine[2])
+                w = float(splitLine[3])
+                h = float(splitLine[4])
+                bb = BoundingBox(
+                    nameOfImage,
+                    idClass,
+                    x,
+                    y,
+                    w,
+                    h,
+                    coordType,
+                    imgSize,
+                    BBType.GroundTruthMoving,
+                    format=bbFormat)
+            elif bb_type=='isDT':
                 # idClass = int(splitLine[0]) #class
                 idClass = (splitLine[0])  # class
                 confidence = float(splitLine[1])
@@ -146,6 +164,7 @@ def getBoundingBoxes(directory,
                 y = float(splitLine[3])
                 w = float(splitLine[4])
                 h = float(splitLine[5])
+                cnt = int(splitLine[6])
                 bb = BoundingBox(
                     nameOfImage,
                     idClass,
@@ -157,7 +176,8 @@ def getBoundingBoxes(directory,
                     imgSize,
                     BBType.Detected,
                     confidence,
-                    format=bbFormat)
+                    format=bbFormat,
+                    cnt=cnt)
             allBoundingBoxes.addBoundingBox(bb)
             if idClass not in allClasses:
                 allClasses.append(idClass)
@@ -188,6 +208,13 @@ parser.add_argument(
     metavar='',
     help='folder containing your ground truth bounding boxes')
 parser.add_argument(
+    '-mv',
+    '--mvfolder',
+    dest='mvFolder',
+    default=os.path.join(currentPath, 'groundtruthsmoving'),
+    metavar='',
+    help='folder containing your ground truth moving bounding boxes')
+parser.add_argument(
     '-det',
     '--detfolder',
     dest='detFolder',
@@ -207,7 +234,7 @@ parser.add_argument(
     '-gtformat',
     dest='gtFormat',
     metavar='',
-    default='xywh',
+    default='xyrb',
     help='format of the coordinates of the ground truth bounding boxes: '
     '(\'xywh\': <left> <top> <width> <height>)'
     ' or (\'xyrb\': <left> <top> <right> <bottom>)')
@@ -215,7 +242,7 @@ parser.add_argument(
     '-detformat',
     dest='detFormat',
     metavar='',
-    default='xywh',
+    default='xyrb',
     help='format of the coordinates of the detected bounding boxes '
     '(\'xywh\': <left> <top> <width> <height>) '
     'or (\'xyrb\': <left> <top> <right> <bottom>)')
@@ -263,6 +290,15 @@ else:
     gtFolder = os.path.join(currentPath, 'groundtruths')
     if os.path.isdir(gtFolder) is False:
         errors.append('folder %s not found' % gtFolder)
+
+# mv folder
+if ValidateMandatoryArgs(args.mvFolder, '-mv/--mvfolder', errors):
+    mvFolder = ValidatePaths(args.gtFolder, '-mv/--mvfolder', errors)
+else:
+    # errors.pop()
+    mvFolder = os.path.join(currentPath, 'mvfolder')
+    if os.path.isdir(mvFolder) is False:
+        errors.append('folder %s not found' % mvFolder)
 # Coordinates types
 gtCoordType = ValidateCoordinatesTypes(args.gtCoordinates, '-gtCoordinates', errors)
 detCoordType = ValidateCoordinatesTypes(args.detCoordinates, '-detCoordinates', errors)
@@ -310,10 +346,13 @@ showPlot = args.showPlot
 
 # Get groundtruth boxes
 allBoundingBoxes, allClasses = getBoundingBoxes(
-    gtFolder, True, gtFormat, gtCoordType, imgSize=imgSize)
+    gtFolder, 'isGT', gtFormat, gtCoordType, imgSize=imgSize)
+# Get gt movining boxes
+allBoundingBoxes, allClasses = getBoundingBoxes(
+    mvFolder, 'isMV', gtFormat, gtCoordType, allBoundingBoxes, allClasses, imgSize=imgSize)
 # Get detected boxes
 allBoundingBoxes, allClasses = getBoundingBoxes(
-    detFolder, False, detFormat, detCoordType, allBoundingBoxes, allClasses, imgSize=imgSize)
+    detFolder, 'isDT', detFormat, detCoordType, allBoundingBoxes, allClasses, imgSize=imgSize)
 allClasses.sort()
 
 evaluator = Evaluator()
@@ -354,9 +393,9 @@ for metricsPerClass in detections:
         prec = ['%.2f' % p for p in precision]
         rec = ['%.2f' % r for r in recall]
         
-        p = precision[-1]
-        r = recall[-1]
-        f1 = 2 * (p * r) / (p + r)
+        # p = precision[-1]
+        # r = recall[-1]
+        # f1 = 2 * (p * r) / (p + r)
 
         ap_str = "{0:.2f}%".format(ap * 100)
         # ap_str = "{0:.4f}%".format(ap * 100)
@@ -368,7 +407,7 @@ for metricsPerClass in detections:
         f.write('\nTP: %s' % total_TP)
         f.write('\nFP: %s' % total_FP)
         f.write('\nFN: %s' % total_FN)
-        f.write('\nF1: %s' % f1)
+        # f.write('\nF1: %s' % f1)
 
 mAP = acc_AP / validClasses
 mAP_str = "{0:.2f}%".format(mAP * 100)

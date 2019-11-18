@@ -13,7 +13,8 @@ class BoundingBox:
                  imgSize=None,
                  bbType=BBType.GroundTruth,
                  classConfidence=None,
-                 format=BBFormat.XYWH):
+                 format=BBFormat.XYWH,
+                 cnt=0):
         """Constructor.
         Args:
             imageName: String representing the image name.
@@ -51,6 +52,7 @@ class BoundingBox:
         self._bbType = bbType
         self._classId = classId
         self._format = format
+        self._cnt = cnt
 
         # If relative coordinates, convert to absolute values
         # For relative coords: (x,y,w,h)=(X_center/img_width , Y_center/img_height)
@@ -124,6 +126,9 @@ class BoundingBox:
 
     def getBBType(self):
         return self._bbType
+
+    def getCnt(self):
+        return self._cnt
 
     @staticmethod
     def compare(det1, det2):

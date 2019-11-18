@@ -52,6 +52,7 @@ class Evaluator:
         ret = []  # list containing metrics (precision, recall, average precision) of each class
         # List with all ground truths (Ex: [imageName,class,confidence=1, (bb coordinates XYX2Y2)])
         groundTruths = []
+        groundTruthsMoving = []
         # List with all detections (Ex: [imageName,class,confidence,(bb coordinates XYX2Y2)])
         detections = []
         # Get all classes
@@ -65,12 +66,19 @@ class Evaluator:
                     bb.getClassId(), 1,
                     bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
                 ])
+            elif bb.getBBType() == BBType.GroundTruthMoving:
+                groundTruthsMoving.append([
+                    bb.getImageName(),
+                    bb.getClassId(), 1,
+                    bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
+                ])
             else:
                 detections.append([
                     bb.getImageName(),
                     bb.getClassId(),
                     bb.getConfidence(),
-                    bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2)
+                    bb.getAbsoluteBoundingBox(BBFormat.XYX2Y2),
+                    bb.getCnt()
                 ])
             # get class
             if bb.getClassId() not in classes:
@@ -85,17 +93,25 @@ class Evaluator:
             # Get only ground truths of class c
             gts = []
             [gts.append(g) for g in groundTruths if g[1] == c]
+
+            gtm = []
+            [gtm.append(g) for g in groundTruthsMoving if g[1] == c]
+
             npos = len(gts)
             # sort detections by decreasing confidence
             dects = sorted(dects, key=lambda conf: conf[2], reverse=True)
             TP = np.zeros(len(dects))
             FP = np.zeros(len(dects))
+            FN = np.ones(len(gts))
             # create dictionary with amount of gts for each image
             det = Counter([cc[0] for cc in gts])
             for key, val in det.items():
                 det[key] = np.zeros(val)
             # print("Evaluating class: %s (%d detections)" % (str(c), len(dects)))
             # Loop through detections
+            
+            j_total = 0
+            j_tmp = 0
             for d in range(len(dects)):
                 # print('dect %s => %s' % (dects[d][0], dects[d][3],))
                 # Find ground truth image
@@ -107,8 +123,13 @@ class Evaluator:
                     if iou > iouMax:
                         iouMax = iou
                         jmax = j
+                    j_tmp = j
                 # Assign detection as true positive/don't care/false positive
                 if iouMax >= IOUThreshold:
+                    # TP[d] = 1  # count as true positive
+                    # FN[j_total+jmax] = 0
+                    # det[dects[d][0]][jmax] = 1  # flag as already 'seen'
+                    # print("TP", d)
                     if det[dects[d][0]][jmax] == 0:
                         TP[d] = 1  # count as true positive
                         det[dects[d][0]][jmax] = 1  # flag as already 'seen'
@@ -119,7 +140,12 @@ class Evaluator:
                 # - A detected "cat" is overlaped with a GT "cat" with IOU >= IOUThreshold.
                 else:
                     FP[d] = 1  # count as false positive
-                    # print("FP")
+                    print("FP", c, dects[d][0], dects[d][-1])
+                j_total += j_tmp
+
+            # for key, val in det.items():
+            #     print(key, val)
+
             # compute precision, recall and average precision
             acc_FP = np.cumsum(FP)
             acc_TP = np.cumsum(TP)

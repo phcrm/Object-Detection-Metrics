@@ -34,6 +34,7 @@ class BBType(Enum):
         Developed by: Rafael Padilla
         Last modification: May 24 2018
     """
+    GroundTruthMoving = 0
     GroundTruth = 1
     Detected = 2
 
