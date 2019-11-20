@@ -11,6 +11,7 @@
 import os
 import sys
 from collections import Counter
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -90,6 +91,8 @@ class Evaluator:
             # Get only detection of class c
             dects = []
             [dects.append(d) for d in detections if d[1] == c]
+
+
             # Get only ground truths of class c
             gts = []
             [gts.append(g) for g in groundTruths if g[1] == c]
@@ -107,11 +110,37 @@ class Evaluator:
             det = Counter([cc[0] for cc in gts])
             for key, val in det.items():
                 det[key] = np.zeros(val)
+            
+
+            # found but missclassified
+            dectx = []
+            [dectx.append(d) for d in detections if d[1] != c]
+            detx =deepcopy(det)
+            for d in dectx:
+                # print(dectx[d])
+                gt = [gt for gt in gts if gt[0] == d[0]]
+                iouMax = sys.float_info.min
+                for j in range(len(gt)):
+                    # print('Ground truth gt => %s' % (gt[j][3],))
+                    iou = Evaluator.iou(d[3], gt[j][3])
+                    if iou > iouMax:
+                        iouMax = iou
+                        jmax = j
+                # Assign detection as true positive/don't care/false positive
+                if iouMax >= IOUThreshold:
+                    detx[d[0]][jmax] = 1
+                    # print(d)
+
+            found_but_missclassified = 0
+            for k,v in detx.items():
+                found_but_missclassified += np.sum(v)
+                # print(k,v)
+            print(f"Found but missclassified {c}: {found_but_missclassified}")
+
+
             # print("Evaluating class: %s (%d detections)" % (str(c), len(dects)))
             # Loop through detections
             
-            j_total = 0
-            j_tmp = 0
             for d in range(len(dects)):
                 # print('dect %s => %s' % (dects[d][0], dects[d][3],))
                 # Find ground truth image
@@ -123,25 +152,19 @@ class Evaluator:
                     if iou > iouMax:
                         iouMax = iou
                         jmax = j
-                    j_tmp = j
                 # Assign detection as true positive/don't care/false positive
                 if iouMax >= IOUThreshold:
-                    # TP[d] = 1  # count as true positive
-                    # FN[j_total+jmax] = 0
-                    # det[dects[d][0]][jmax] = 1  # flag as already 'seen'
-                    # print("TP", d)
                     if det[dects[d][0]][jmax] == 0:
                         TP[d] = 1  # count as true positive
                         det[dects[d][0]][jmax] = 1  # flag as already 'seen'
-                        # print("TP")
+                        # print("TP", dects[d])
                     else:
                         FP[d] = 1  # count as false positive
                         # print("FP")
                 # - A detected "cat" is overlaped with a GT "cat" with IOU >= IOUThreshold.
                 else:
                     FP[d] = 1  # count as false positive
-                    print("FP", c, dects[d][0], dects[d][-1])
-                j_total += j_tmp
+                    # print("FP", c, dects[d][0], dects[d][-1])
 
             # for key, val in det.items():
             #     print(key, val)
@@ -157,6 +180,7 @@ class Evaluator:
             else:
                 [ap, mpre, mrec, _] = Evaluator.ElevenPointInterpolatedAP(rec, prec)
             # add class result in the dictionary to be returned
+
             r = {
                 'class': c,
                 'precision': prec,
